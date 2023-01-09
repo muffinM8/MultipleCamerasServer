@@ -1,3 +1,3 @@
 # MultipleCamerasServer
 
-A UDP server that gets the output of multiple cameras, and displays them on the screen.
+A UDP server that gets a live output of multiple cameras at the same time, and displays them on the screen.
