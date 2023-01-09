@@ -58,10 +58,7 @@ while True:
     # Receive data from a client
     data, address = sock.recvfrom(REC_SIZE)
     handle_camera(address, data)
-    """
-    # Create a new thread to handle this camera
-    t = threading.Thread(target=handle_camera, args=(address, data))
-    t.start()"""
+
 
 cv2.destroyAllWindows()
 sock.close()
