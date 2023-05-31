@@ -1,17 +1,24 @@
 import cv2
 import socket
+import threading
 import numpy as np
 import sys
+import sqlite3
+import tkinter as tk
+import re
+import ctypes
 
-REC_SIZE = 64000-3
+REC_SIZE = 64000 - 3
 
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-server_address = ('x.x.x.x', 10000) #replace x.x.x.x with the server ip
+server_address = ('192.168.3.6', 10000)
+TCP_server_address = ('192.168.3.6', 11111)
 
 # Initialize the camera
-camera = cv2.VideoCapture(0) #0 is for the default camera
+camera = cv2.VideoCapture(0)
+
 
 def send_frame(frame):
     # Encode the frame as JPEG
@@ -19,17 +26,154 @@ def send_frame(frame):
     print(len(enc_frame))
 
     # Split the data into chunks (that will allways be 2 chunks)
-    chunks = [enc_frame[:REC_SIZE],enc_frame[REC_SIZE:]]
+    chunks = [enc_frame[:REC_SIZE], enc_frame[REC_SIZE:]]
 
     # Send the chunks to the server
-    #Send the STR chunk signal at the start of the first chunk
-    sock.sendto(b'STR'+bytes(chunks[0]), server_address)
-    sock.sendto(bytes(chunks[1])+b'END', server_address)
+    # Send the STR chunk signal at the start of the first chunk
+    sock.sendto(b'STR' + bytes(chunks[0]), server_address)
+    sock.sendto(bytes(chunks[1]) + b'END', server_address)
     # Send the END chunk to signal the end of the image data
 
 
-while True:
-    #
-    ret, frame = camera.read()
-    
-    send_frame(frame)
+def start_camera():
+    while True:
+        #
+        _, frame = camera.read()
+
+        send_frame(frame)
+
+
+global base
+base = tk.Tk()
+base.geometry('500x500')
+global frame
+frame = tk.Frame(base)
+frame.pack()
+
+
+def send_info_to_server(en1, en2, en3=""):
+    my_socket = socket.socket()
+    my_socket.connect(TCP_server_address)
+    # my_socket.send("connecting".encode())
+    if (en3 == ""):  # login
+        my_socket.send((f'L,{en1},{en2}').encode())
+        print(f"Sent data Log-in L,{en1},{en2}")
+    else:  # sign up
+        my_socket.send((f'S,{en1},{en2},{en3}').encode())
+        print(f"Sent data Log-in S,{en1},{en2},{en3}")
+    data = my_socket.recv(1024).decode()
+    print(data)
+    if (data == "This mail already exists"):
+        ctypes.windll.user32.MessageBoxW(0, u"This mail already exists", u"Error", 0)
+    elif (data == "wrong password"):
+        ctypes.windll.user32.MessageBoxW(0, u"wrong password", u"Error", 0)
+    elif (data == "Account not found - wrong email"):
+        ctypes.windll.user32.MessageBoxW(0, u"Account not found - wrong email", u"Error", 0)
+    elif (data == "con" or data == "conL"):
+        global frame
+        frame.destroy()
+        base.destroy()
+        start_camera()
+    else:
+        ctypes.windll.user32.MessageBoxW(0, u"something went wrong", u"Error", 0)
+
+
+def check_input_sign_up(en1, en2, en3):
+    regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+    print("good")
+    if (en1 == "" or en2 == "" or en3 == ""):
+        ctypes.windll.user32.MessageBoxW(0, u"Not all Fields are full", u"Error", 0)
+        sign_up()
+    if (not re.fullmatch(regex, en2)):
+        ctypes.windll.user32.MessageBoxW(0, u"Invalid Email", u"Error", 0)
+        sign_up()
+    send_info_to_server(en1, en2, en3)
+
+
+def check_input_sign_in(en1, en2):
+    regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+    print("bad")
+    if (en1 == "" or en2 == ""):
+        ctypes.windll.user32.MessageBoxW(0, u"Not all Fields are full", u"Error", 0)
+        sign_in()
+    if (not re.fullmatch(regex, en1)):
+        ctypes.windll.user32.MessageBoxW(0, u"Invalid Email", u"Error", 0)
+        sign_in()
+    send_info_to_server(en1, en2)
+
+
+def sign_in():
+    print("Entered")
+    global frame, base
+    frame.destroy()
+    frame = tk.Frame(base)
+    frame.pack()
+    base.title = ("Sing-in Form")
+
+    labl_0 = tk.Label(frame, text="Sign-in form", width=20, font=("bold", 20))
+    labl_0.pack()
+
+    labl_2 = tk.Label(frame, text="Email", width=20, font=("bold", 10))
+    labl_2.pack()
+
+    entry_02 = tk.Entry(frame)
+    entry_02.pack()
+
+    labl_3 = tk.Label(frame, text="Password", width=20, font=("bold", 10))
+    labl_3.pack()
+
+    entry_03 = tk.Entry(frame, show="*")
+    entry_03.pack()
+
+    empty_space = tk.Label(frame, text="", width=20, font=("bold", 10))
+    empty_space.pack()
+
+    tk.Button(frame, command=lambda: check_input_sign_in(entry_02.get(), entry_03.get()), text='Submit', width=20,
+              bg='brown', fg='white').pack()
+    tk.Button(frame, command=sign_up, text='create a new account', width=20, bg='brown', fg='white').pack()
+
+    base.mainloop()
+
+
+def sign_up():
+    global frame, base
+    base.title = ("Registration Form")
+    frame.destroy()
+    frame = tk.Frame(base)
+    frame.pack()
+
+    labl_0 = tk.Label(frame, text="Registration form", width=20, font=("bold", 20))
+    labl_0.pack()
+
+    labl_1 = tk.Label(frame, text="FullName", width=20, font=("bold", 10))
+    labl_1.pack()
+
+    entry_1 = tk.Entry(frame)
+    entry_1.pack()
+
+    labl_2 = tk.Label(frame, text="Email", width=20, font=("bold", 10))
+    labl_2.pack()
+
+    entry_02 = tk.Entry(frame)
+    entry_02.pack()
+
+    labl_4 = tk.Label(frame, text="Password:", width=20, font=("bold", 10))
+    labl_4.pack()
+
+    entry_03 = tk.Entry(frame, show="*")
+    entry_03.pack()
+
+    empty_space = tk.Label(frame, text="", width=20, font=("bold", 10))
+    empty_space.pack()
+
+    tk.Button(frame, command=lambda: check_input_sign_up(entry_1.get(), entry_02.get(), entry_03.get()), text='Submit',
+              width=20, bg='brown', fg='white').pack()
+    tk.Button(frame, command=sign_in, text='Already have an account', width=20, bg='brown', fg='white').pack()
+
+    base.mainloop()
+
+
+if __name__ == "__main__":
+    sign_in()
+
+
