@@ -7,6 +7,7 @@ import sqlite3
 import tkinter as tk
 import re
 import ctypes
+import rsa
 
 REC_SIZE = 64000 - 3
 
@@ -19,6 +20,37 @@ TCP_server_address = ('192.168.3.22', 11111)
 # Initialize the camera
 camera = cv2.VideoCapture(0)
 
+global path_rsa
+path_rsa = r'C:\Users\Ort Holon 2\MultipleCamerasServer'
+
+#encryption
+def generateKeys():
+    (publicKey, privateKey) = rsa.newkeys(1024)
+    with open('publcKey.pem', 'wb') as p:
+        p.write(publicKey.save_pkcs1('PEM'))
+    with open('privateKey.pem', 'wb') as p:
+        p.write(privateKey.save_pkcs1('PEM'))
+
+def load_keys():
+    global path_rsa
+    with open(path_rsa + '\publcKey.pem', 'rb') as p:
+        publicKey = rsa.PublicKey.load_pkcs1(p.read())
+    with open(path_rsa + '\privateKey.pem', 'rb') as p:
+        privateKey = rsa.PrivateKey.load_pkcs1(p.read())
+    return privateKey, publicKey
+
+def encrypt(message, key):
+    return rsa.encrypt(message, key)
+
+def decrypt(ciphertext, key):
+    try:
+        return rsa.decrypt(ciphertext, key)
+    except:
+        return False
+
+generateKeys()
+global public_key, private_key
+private_key, public_key = load_keys()
 
 def send_frame(frame):
     # Encode the frame as JPEG
@@ -52,13 +84,15 @@ frame.pack()
 
 
 def send_info_to_server(en1, en2, en3=""):
+    global priavte_key, server_public_key
     if (en3 == ""):  # login
-        my_socket.send((f'L,{en1},{en2}').encode())
+        my_socket.send(encrypt(f'L,{en1},{en2}'.encode(),server_public_key))
         print(f"Sent data Log-in L,{en1},{en2}")
     else:  # sign up
-        my_socket.send((f'S,{en1},{en2},{en3}').encode())
+        my_socket.send(encrypt(f'S,{en1},{en2},{en3}'.encode(),server_public_key))
         print(f"Sent data Log-in S,{en1},{en2},{en3}")
-    data = my_socket.recv(1024).decode()
+    data = my_socket.recv(1024)
+    data = decrypt(data, private_key).decode()
     print(data)
     if (data == "This mail already exists"):
         ctypes.windll.user32.MessageBoxW(0, u"This mail already exists", u"Error", 0)
@@ -173,9 +207,13 @@ def sign_up():
     base.mainloop()
 
 
-if __name__ == "__main__":
-    my_socket = socket.socket()
-    my_socket.connect(TCP_server_address)
-    sign_in()
+
+global  server_public_key
+my_socket = socket.socket()
+my_socket.connect(TCP_server_address)
+my_socket.send(public_key.save_pkcs1(format='DER'))
+server_public_key = my_socket.recv(1024)
+server_public_key = rsa.key.PublicKey.load_pkcs1(server_public_key, format='DER')
+sign_in()
 
 

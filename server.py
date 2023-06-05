@@ -12,6 +12,7 @@ import select
 import pandas as panda
 import time
 from datetime import datetime
+import rsa
 
 # The UDP server for the getting the images.
 REC_SIZE = 64000
@@ -26,12 +27,48 @@ sock.bind(server_address)
 global image_file
 image_file = r'C:\Users\Ort Holon 2\Downloads\Connecting.png'
 
+global path_rsa
+path_rsa = r'C:\Users\Ort Holon 2\MultipleCamerasServer'
+
 # the TCP server for logging-in and signing-up
 open_sockets = []
 listening_socket = socket.socket()
 TCP_server_address = ("0.0.0.0", 11111)
 listening_socket.bind(TCP_server_address)
 listening_socket.listen(1)
+
+#encryption
+global ip_to_public_key
+ip_to_public_key = {} #tcp sock to public key
+
+def generateKeys():
+    (publicKey, privateKey) = rsa.newkeys(1024)
+    with open('publcKey.pem', 'wb') as p:
+        p.write(publicKey.save_pkcs1('PEM'))
+    with open('privateKey.pem', 'wb') as p:
+        p.write(privateKey.save_pkcs1('PEM'))
+
+def load_keys():
+    global path_rsa
+    with open(path_rsa +'\publcKey.pem', 'rb') as p:
+        publicKey = rsa.PublicKey.load_pkcs1(p.read())
+    with open(path_rsa +'\privateKey.pem', 'rb') as p:
+        privateKey = rsa.PrivateKey.load_pkcs1(p.read())
+    return privateKey, publicKey
+
+def encrypt(message, key):
+    return rsa.encrypt(message, key)
+
+def decrypt(ciphertext, key):
+    try:
+        return rsa.decrypt(ciphertext, key)
+    except:
+        return False
+
+generateKeys()
+global public_key, private_key
+private_key, public_key = load_keys()
+
 
 global cameras
 global first_frame
@@ -223,8 +260,14 @@ def TCP_server():
                 client_socket, _ = listening_socket.accept()
                 open_sockets.append(client_socket)
             else:
-                data = TCP_sock.recv(1024).decode()
-                if (not data == ""):
+                data = TCP_sock.recv(1024)
+                print(data)
+                print(len(data))
+                if(ip_to_public_key.get(TCP_sock) == None):
+                    ip_to_public_key[TCP_sock] = rsa.key.PublicKey.load_pkcs1(data, format='DER')
+                    TCP_sock.send(public_key.save_pkcs1(format='DER'))
+                elif (not data == ""):
+                    data = decrypt(data, private_key).decode()
                     print(f"Server recieved: {data}")
                     if (data[0] == "S"):  # the sign up proces
                         data = data.split(',')
@@ -232,20 +275,22 @@ def TCP_server():
                         print(query_user(email))
                         if (query_user(email) == []):  # checking if email is new
                             insert_row(data[3], data[1], email)
-                            TCP_sock.send("con".encode())
+                            TCP_sock.send(encrypt("con".encode(),ip_to_public_key[TCP_sock]))
                         else:  # email already in db
-                            TCP_sock.send("This mail already exists".encode())
+                            msg = "This mail already exists".encode()
+                            TCP_sock.send(encrypt(msg, ip_to_public_key[TCP_sock]))
                     if (data[0] == "L"):  # Log in proces
                         data = data.split(',')
                         email = data[1]
                         query = query_user(email)
                         print("this is query:", query)
                         if (query == []):
-                            TCP_sock.send("Account not found - wrong email".encode())
+                            msg = "Account not found - wrong email".encode()
+                            TCP_sock.send(encrypt(msg, ip_to_public_key[TCP_sock]))
                         elif (query[0][0] == data[2]):  # check password
-                            TCP_sock.send("conL".encode())
+                            TCP_sock.send(encrypt("conL".encode(),ip_to_public_key[TCP_sock]))
                         else:
-                            TCP_sock.send("wrong password".encode())
+                            TCP_sock.send(encrypt("wrong password".encode(),ip_to_public_key[TCP_sock]))
                 # check if data is correct, and if so dissconect client
                 rlist.remove(TCP_sock)
                 allSock.remove(TCP_sock)
