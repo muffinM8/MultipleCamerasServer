@@ -13,8 +13,8 @@ REC_SIZE = 64000 - 3
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-server_address = ('192.168.3.6', 10000)
-TCP_server_address = ('192.168.3.6', 11111)
+server_address = ('192.168.3.22', 10000)
+TCP_server_address = ('192.168.3.22', 11111)
 
 # Initialize the camera
 camera = cv2.VideoCapture(0)
@@ -52,8 +52,6 @@ frame.pack()
 
 
 def send_info_to_server(en1, en2, en3=""):
-    my_socket = socket.socket()
-    my_socket.connect(TCP_server_address)
     # my_socket.send("connecting".encode())
     if (en3 == ""):  # login
         my_socket.send((f'L,{en1},{en2}').encode())
@@ -76,6 +74,9 @@ def send_info_to_server(en1, en2, en3=""):
         start_camera()
     else:
         ctypes.windll.user32.MessageBoxW(0, u"something went wrong", u"Error", 0)
+    if(en3==""):
+        return
+    sign_up()
 
 
 def check_input_sign_up(en1, en2, en3):
@@ -174,6 +175,8 @@ def sign_up():
 
 
 if __name__ == "__main__":
+    my_socket = socket.socket()
+    my_socket.connect(TCP_server_address)
     sign_in()
 
 
