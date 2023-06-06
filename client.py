@@ -52,7 +52,6 @@ frame.pack()
 
 
 def send_info_to_server(en1, en2, en3=""):
-    # my_socket.send("connecting".encode())
     if (en3 == ""):  # login
         my_socket.send((f'L,{en1},{en2}').encode())
         print(f"Sent data Log-in L,{en1},{en2}")

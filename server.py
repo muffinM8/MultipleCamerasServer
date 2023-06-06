@@ -132,24 +132,16 @@ def exit():
 
 
 def handle_cameras():
-    #while True:
     data, address = sock.recvfrom(REC_SIZE)
     # If the client is not in the list of connected cameras, add it
     if address not in cameras:
         cameras[address] = []
         label = tk.Label(image=photo)
         label.pack()
-        #c = tk.Canvas(window)
-        #c.grid(row=j, column=i)
-        #c.pack()
         canvas_id.append(label)
-        #image_container[c] = c.create_image(0, 0, anchor='nw', image=photo)
         camera_canvas[address] = canvas_id[len(cameras) - 1]
-        #camera_canvas[address].delete(image_container[camera_canvas[address]])#delete the connecting image
         canvas_to_address[canvas_id[len(cameras) - 1]] = address
-        #window.update()
     # check if the data dows not collaps
-    # print(data)
     if (data[:3] == b'STR'):
         print("STR")
         cameras[address] = []
@@ -210,16 +202,12 @@ def handle_cameras():
             display = PIL.ImageTk.PhotoImage(data)
             lab.configure(image=display)
             lab.image = display
-            #image_container[c] = c.create_image(0, 0, anchor='nw', image=display)
-            #c.itemconfig(image_container[c], image=display)
-            #window.update()
         # Clear the data for this camera
         except Exception as e:
             sys.setrecursionlimit(sys.getrecursionlimit() + 10000)
             print("[Error]: {}".format(e))
         finally:
             cameras[address] = []
-    #window.update_idletasks()
     window.update()
 
     window.after(0, handle_cameras)  # crytical part - won't work without this line - calling the same function after 0 secends
@@ -277,16 +265,6 @@ if __name__ == "__main__":
     photo = PIL.ImageTk.PhotoImage(img)
 
     # the white blocks are because the image is blocking the video - false
-    """
-    for i in range(4):
-        for j in range(3):
-            c = tk.Canvas(window)
-            c.grid(row=j, column=i)
-            canvas_id.append(c)
-            image_container[c] = c.create_image(0, 0, anchor='nw', image=photo)
-            window.update()"""
-    print(image_container)
-    #t.start()
     t2.start()
     handle_cameras()
     window.mainloop()
