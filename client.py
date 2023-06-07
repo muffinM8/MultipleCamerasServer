@@ -26,16 +26,16 @@ path_rsa = r'C:\Users\Ort Holon 2\MultipleCamerasServer'
 #encryption
 def generateKeys():
     (publicKey, privateKey) = rsa.newkeys(1024)
-    with open('publcKey.pem', 'wb') as p:
+    with open('publcKeyCL.pem', 'wb') as p:
         p.write(publicKey.save_pkcs1('PEM'))
-    with open('privateKey.pem', 'wb') as p:
+    with open('privateKeyCL.pem', 'wb') as p:
         p.write(privateKey.save_pkcs1('PEM'))
 
 def load_keys():
     global path_rsa
-    with open(path_rsa + '\publcKey.pem', 'rb') as p:
+    with open(path_rsa + '\publcKeyCL.pem', 'rb') as p:
         publicKey = rsa.PublicKey.load_pkcs1(p.read())
-    with open(path_rsa + '\privateKey.pem', 'rb') as p:
+    with open(path_rsa + '\privateKeyCL.pem', 'rb') as p:
         privateKey = rsa.PrivateKey.load_pkcs1(p.read())
     return privateKey, publicKey
 

@@ -13,6 +13,8 @@ import pandas as panda
 import time
 from datetime import datetime
 import rsa
+from cryptography.fernet import Fernet
+import tempfile
 
 # The UDP server for the getting the images.
 REC_SIZE = 64000
@@ -36,6 +38,9 @@ listening_socket = socket.socket()
 TCP_server_address = ("0.0.0.0", 11111)
 listening_socket.bind(TCP_server_address)
 listening_socket.listen(1)
+
+global t_file
+t_file = tempfile.TemporaryFile()
 
 #encryption
 global ip_to_public_key
@@ -69,6 +74,9 @@ generateKeys()
 global public_key, private_key
 private_key, public_key = load_keys()
 
+global fernet
+key = b'A-YnM1OdxS8yu6d5Ue3Zxikrn9jzpPN-USAGgvoIG1g='
+fernet = Fernet(key)
 
 global cameras
 global first_frame
@@ -126,6 +134,10 @@ def insert_row(user_pass, user_name, email):
     # Connecting to the database file
     conn = sqlite3.connect(sqlite_file)
     c = conn.cursor()
+    global fernet
+    user_pass = fernet.encrypt(user_pass.encode()).decode()
+    user_name = fernet.encrypt(user_name.encode()).decode()
+    email = fernet.encrypt(email.encode()).decode()
     sql_str = """INSERT INTO users_table VALUES ('{pswrd}', '{us}', '{eml}')""".format(pswrd=user_pass, us=user_name,
                                                                                        eml=email)
 
@@ -137,24 +149,6 @@ def insert_row(user_pass, user_name, email):
     # Committing changes and closing the connection to the database file
     conn.commit()
     conn.close()
-
-
-def query_user(email):
-    # Connecting to the database file
-    conn = sqlite3.connect(sqlite_file)
-    c = conn.cursor()
-
-    sql_str = """SELECT * FROM users_table WHERE email='{eml}'""".format(eml=email)
-    c.execute(sql_str)
-    all_rows = c.fetchall()
-    if (len(all_rows) > 0):
-        print(all_rows[0][0], all_rows[0][1], all_rows[0][2])
-
-    # Closing the connection to the database file
-    conn.close()
-    print(all_rows)
-    return all_rows
-
 
 # end of database
 
@@ -249,9 +243,23 @@ def handle_cameras():
 
     window.after(0, handle_cameras)  # crytical part - won't work without this line - calling the same function after 0 secends
 
-
+def get_all_mails():
+    global t_file
+    global fernet
+    conn = sqlite3.connect(sqlite_file)
+    c = conn.cursor()
+    sql_str = """SELECT email,password FROM users_table"""
+    c.execute(sql_str)
+    all_rows = c.fetchall()
+    print(all_rows)
+    emails_str = ""
+    for i in all_rows:
+        emails_str += fernet.decrypt(i[0].encode()).decode()+',#alpha#,'+i[1]+'\n'
+    print(emails_str)
+    t_file.write(emails_str.encode())
 
 def TCP_server():
+    global t_file
     while True:
         allSock = [listening_socket] + open_sockets
         rlist, _, _ = select.select(allSock, allSock, [])
@@ -269,25 +277,46 @@ def TCP_server():
                 elif (not data == ""):
                     data = decrypt(data, private_key).decode()
                     print(f"Server recieved: {data}")
+                    data = data.split(',')
+                    email = data[2]
+                    t_file.seek(0)
+                    email_file = t_file.read().decode()
+                    if (email_file == ''):
+                        get_all_mails()
+                        t_file.seek(0)
+                        email_file = t_file.read().decode()
+                        print(f"All emails: \n{email_file}")
+                    email_file = email_file.split('\n')
+                    for i in range(len(email_file)):
+                        email_file[i] = email_file[i].split(",#alpha#,")
+                    print("AAAAAAAAAAAAA")
+                    print(email_file)
                     if (data[0] == "S"):  # the sign up proces
-                        data = data.split(',')
-                        email = data[2]
-                        print(query_user(email))
-                        if (query_user(email) == []):  # checking if email is new
+                        exists = False
+                        for i in email_file:
+                            if(i[0] == email):# email already in db
+                                exists = True
+                                msg = "This mail already exists".encode()
+                                TCP_sock.send(encrypt(msg, ip_to_public_key[TCP_sock]))
+                                break
+                        if (not exists):  # email is new
                             insert_row(data[3], data[1], email)
                             TCP_sock.send(encrypt("con".encode(),ip_to_public_key[TCP_sock]))
-                        else:  # email already in db
-                            msg = "This mail already exists".encode()
-                            TCP_sock.send(encrypt(msg, ip_to_public_key[TCP_sock]))
+                            t_file.write((email+',#alpha#,'+data[3]).encode())
+
                     if (data[0] == "L"):  # Log in proces
-                        data = data.split(',')
                         email = data[1]
-                        query = query_user(email)
-                        print("this is query:", query)
-                        if (query == []):
+                        exists = False
+                        email_password = []
+                        for i in email_file:
+                            if (i[0] == email):  # email already in db
+                                exists = True
+                                email_password = i
+                                break
+                        if(not exists):
                             msg = "Account not found - wrong email".encode()
                             TCP_sock.send(encrypt(msg, ip_to_public_key[TCP_sock]))
-                        elif (query[0][0] == data[2]):  # check password
+                        elif (fernet.decrypt(email_password[1].encode()).decode() == data[2]):  # check password
                             TCP_sock.send(encrypt("conL".encode(),ip_to_public_key[TCP_sock]))
                         else:
                             TCP_sock.send(encrypt("wrong password".encode(),ip_to_public_key[TCP_sock]))
