@@ -66,13 +66,30 @@ def send_frame(frame):
     sock.sendto(bytes(chunks[1]) + b'END', server_address)
     # Send the END chunk to signal the end of the image data
 
+def on_closing():
+    global base
+    sock.sendto(b'QUIT',server_address)
+    base.destroy()
+    sock.close()
+    sys.exit()
+
 
 def start_camera():
+    global base
+    base = tk.Tk()
+    base.title = ("Registration Form")
+    frame2 = tk.Frame(base)
+    frame2.pack()
+    labl_0 = tk.Label(frame2, text="Press X to exit.", width=20, font=("bold", 20)).pack()
+    base.protocol("WM_DELETE_WINDOW", on_closing)
+
     while True:
-        #
         _, frame = camera.read()
 
         send_frame(frame)
+        base.update()
+
+    base.mainloop()
 
 
 global base

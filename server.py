@@ -68,6 +68,7 @@ def decrypt(ciphertext, key):
     try:
         return rsa.decrypt(ciphertext, key)
     except:
+        print("error with:"+ciphertext.decode())
         return False
 
 generateKeys()
@@ -162,7 +163,9 @@ def exit():
     sys.exit()
 
 
+
 def handle_cameras():
+    global place_holder
     data, address = sock.recvfrom(REC_SIZE)
     # If the client is not in the list of connected cameras, add it
     if address not in cameras:
@@ -172,6 +175,11 @@ def handle_cameras():
         canvas_id.append(label)
         camera_canvas[address] = canvas_id[len(cameras) - 1]
         canvas_to_address[canvas_id[len(cameras) - 1]] = address
+
+    if(data == b'QUIT'):
+        camera_canvas[address].destroy()
+        del cameras[address]
+        del camera_canvas[address]
     # check if the data dows not collaps
     if (data[:3] == b'STR'):
         print("STR")
@@ -274,7 +282,7 @@ def TCP_server():
                 if(ip_to_public_key.get(TCP_sock) == None):
                     ip_to_public_key[TCP_sock] = rsa.key.PublicKey.load_pkcs1(data, format='DER')
                     TCP_sock.send(public_key.save_pkcs1(format='DER'))
-                elif (not data == ""):
+                elif (data != "" and data != b''):
                     data = decrypt(data, private_key).decode()
                     print(f"Server recieved: {data}")
                     data = data.split(',')
